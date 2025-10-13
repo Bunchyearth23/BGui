@@ -1,8 +1,9 @@
 [package]
-name = "bgui-l"
+name = "bgui"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-glfw = "0.60.0"
-glium = "0.36.0"
+pollster = "0.4.0"
+wgpu = "27.0.1"
+winit = "0.30.12"

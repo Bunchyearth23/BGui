@@ -1,8 +1,19 @@
-use glfw::{Monitor, PWindow};
+use std::rc::Rc;
+
+use pollster::FutureExt;
+use wgpu::{
+    Adapter, DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase,
+    SurfaceTarget,
+};
+use winit::{
+    dpi::{LogicalSize, Size},
+    event_loop::{ActiveEventLoop, EventLoop},
+    window::{Window, WindowAttributes},
+};
 
 use crate::prelude::*;
 
-enum WinMode {
+pub enum WinMode {
     FULL,
     WINDOW,
 }
@@ -12,6 +23,7 @@ pub struct BGuiBuilder {
     y: Option<u32>,
     title: Option<String>,
     mode: Option<WinMode>,
+    resizable: bool,
 }
 
 impl BGuiBuilder {
@@ -21,33 +33,69 @@ impl BGuiBuilder {
             y: None,
             title: None,
             mode: None,
+            resizable: false,
         }
     }
 
-    pub fn build(self) -> BGui {
-        let mut context = glfw::init(glfw::fail_on_errors).expect("Cannot init");
+    pub fn width(mut self, x: u32) -> Self {
+        self.x = Some(x);
+        self
+    }
 
-        let mode = self.mode.expect("Missing Mode");
+    pub fn height(mut self, y: u32) -> Self {
+        self.y = Some(y);
+        self
+    }
 
-        let res = match mode {
-            WinMode::FULL => context.with_primary_monitor(|gl, m| {
-                gl.create_window(
-                    self.x.expect("Missing width"),
-                    self.y.expect("Missing Height"),
-                    self.title.unwrap_or("No Title".to_string()).as_str(),
-                    glfw::WindowMode::FullScreen(m.expect("Missing primary monitor")),
-                )
-            }),
-            WinMode::WINDOW => context.create_window(
-                self.x.expect("Missing width"),
-                self.y.expect("Missing Height"),
-                self.title.unwrap_or("No Title".to_string()).as_str(),
-                glfw::WindowMode::Windowed,
-            ),
-        };
+    pub fn mode(mut self, mode: WinMode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
 
-        let window = res.expect("Failed window Init");
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.to_string());
+        self
+    }
 
-        BGui { display: window.0 }
+    pub fn resizable(mut self) -> Self {
+        self.resizable = true;
+        self
+    }
+
+    pub fn build(self, events: ActiveEventLoop) -> BGui {
+        let mut attrib: WindowAttributes = Window::default_attributes();
+
+        attrib.resizable = self.resizable;
+        attrib.title = self.title.unwrap_or("No Title".to_string());
+
+        attrib = attrib.with_inner_size(Size::Logical(LogicalSize::new(
+            self.x.expect("Missing Width") as f64,
+            self.y.expect("Missing Height") as f64,
+        )));
+
+        let instance = Instance::new(&InstanceDescriptor::from_env_or_default());
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptionsBase::default())
+            .block_on()
+            .expect("No compatible Adapters");
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor::default())
+            .block_on()
+            .expect("No compatible Devices");
+
+        let window = events
+            .create_window(attrib)
+            .expect("Failed to create Window");
+        let surface = instance
+            .create_surface(window)
+            .expect("Failed to create Surface");
+
+        BGui {
+            instance: instance,
+            adapter: adapter,
+            device: device,
+            queue: queue,
+            surface: surface,
+        }
     }
 }
