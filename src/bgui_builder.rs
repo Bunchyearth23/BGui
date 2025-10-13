@@ -1,13 +1,7 @@
-use std::rc::Rc;
-
 use pollster::FutureExt;
-use wgpu::{
-    Adapter, DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase,
-    SurfaceTarget,
-};
+use wgpu::{DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase};
 use winit::{
     dpi::{LogicalSize, Size},
-    event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowAttributes},
 };
 
@@ -62,7 +56,7 @@ impl BGuiBuilder {
         self
     }
 
-    pub fn build(self, events: ActiveEventLoop) -> BGui {
+    pub fn build(self) -> BGui {
         let mut attrib: WindowAttributes = Window::default_attributes();
 
         attrib.resizable = self.resizable;
@@ -83,19 +77,13 @@ impl BGuiBuilder {
             .block_on()
             .expect("No compatible Devices");
 
-        let window = events
-            .create_window(attrib)
-            .expect("Failed to create Window");
-        let surface = instance
-            .create_surface(window)
-            .expect("Failed to create Surface");
-
         BGui {
             instance: instance,
             adapter: adapter,
             device: device,
             queue: queue,
-            surface: surface,
+            attributes: attrib,
+            surface: None,
         }
     }
 }
