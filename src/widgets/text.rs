@@ -25,19 +25,14 @@ impl BText {
 impl Widget for BText {
     fn draw(&self, brush: &mut GlyphBrush<()>) {
         let section: Section<Extra> = Section {
-            screen_position: (30.0, 30.0),
+            screen_position: (self.position.0, self.position.1),
             text: vec![
                 Text::new(self.text.as_str())
                     .with_color([1.0, 1.0, 1.0, 1.0])
-                    .with_scale(PxScale {
-                        x: self.position.0,
-                        y: self.position.1,
-                    }),
+                    .with_scale(PxScale { x: 32.0, y: 32.0 }),
             ],
             ..Default::default()
         };
         brush.queue(section);
     }
-
-    fn update(&mut self) {}
 }
