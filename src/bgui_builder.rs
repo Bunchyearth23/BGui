@@ -1,5 +1,7 @@
 use pollster::FutureExt;
-use wgpu::{DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase};
+use wgpu::{
+    DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase, util::StagingBelt,
+};
 use winit::{
     dpi::{LogicalSize, Size},
     window::{Window, WindowAttributes},
@@ -84,6 +86,10 @@ impl BGuiBuilder {
             queue: queue,
             attributes: attrib,
             surface: None,
+            glyph_brush: None,
+            surface_config: None,
+            staging_belt: StagingBelt::new(128),
+            widgets: Vec::new(),
         }
     }
 }
