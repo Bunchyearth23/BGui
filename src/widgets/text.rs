@@ -1,29 +1,45 @@
-use crate::widgets::common::Widget;
+use crate::globals::Globals;
+use crate::widgets::common::{DrawCommand, Drawable, Widget};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 use wgpu_glyph::ab_glyph::PxScale;
-use wgpu_glyph::{Extra, GlyphBrush, Section, Text};
+use wgpu_glyph::{Extra, Section, Text};
 
 pub struct BText {
     text: String,
     position: (f32, f32),
+    func: Option<Arc<Mutex<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>>,
 }
 
 impl BText {
-    pub fn new_static(text: &str, pos: (f32, f32)) -> Self {
+    pub fn new(text: String, pos: (f32, f32)) -> Self {
         Self {
-            text: String::from(text),
+            text: text,
             position: pos,
+            func: None,
         }
     }
-    pub fn new(pos: (f32, f32)) -> Self {
-        Self {
-            text: String::new(),
-            position: pos,
-        }
+
+    pub fn add_function<F: FnMut(&mut Self, &mut HashMap<String, Globals>) + 'static>(
+        &mut self,
+        in_func: F,
+    ) {
+        self.func = Some(Arc::new(Mutex::new(in_func)))
+    }
+
+    pub fn get_text(&self) -> String {
+        self.text.clone()
+    }
+
+    pub fn set_text(&mut self, text_in: String) {
+        self.text = text_in
     }
 }
 
-impl Widget for BText {
-    fn draw(&self, brush: &mut GlyphBrush<()>) {
+impl Drawable for BText {
+    fn draw_command(&self) -> Vec<super::common::DrawCommand<'_>> {
+        let mut commands = Vec::<DrawCommand>::new();
         let section: Section<Extra> = Section {
             screen_position: (self.position.0, self.position.1),
             text: vec![
@@ -33,6 +49,23 @@ impl Widget for BText {
             ],
             ..Default::default()
         };
-        brush.queue(section);
+        commands.push(DrawCommand::Text(section));
+        commands
+    }
+}
+
+impl Widget for BText {
+    fn drawable(&self) -> Box<dyn Drawable> {
+        Box::new(Self {
+            text: self.text.clone(),
+            position: self.position,
+            func: None,
+        })
+    }
+    fn update(&mut self, global: &mut HashMap<String, Globals>) {
+        if let Some(function) = self.func.clone() {
+            let mut lock = function.lock().expect("Poisoned");
+            lock.call_mut((self, global));
+        }
     }
 }

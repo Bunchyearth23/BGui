@@ -1,3 +1,6 @@
+use crate::prelude::*;
+use std::collections::HashMap;
+
 use pollster::FutureExt;
 use wgpu::{
     DeviceDescriptor, Instance, InstanceDescriptor, RequestAdapterOptionsBase, util::StagingBelt,
@@ -6,8 +9,6 @@ use winit::{
     dpi::{LogicalSize, Size},
     window::{Window, WindowAttributes},
 };
-
-use crate::prelude::*;
 
 pub enum WinMode {
     FULL,
@@ -90,6 +91,7 @@ impl BGuiBuilder {
             surface_config: None,
             staging_belt: StagingBelt::new(128),
             widgets: Vec::new(),
+            globals: HashMap::new(),
         }
     }
 }

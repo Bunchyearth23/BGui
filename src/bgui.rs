@@ -1,3 +1,5 @@
+use crate::widgets::common::Widget;
+use std::collections::HashMap;
 use std::process;
 
 use wgpu::util::StagingBelt;
@@ -11,7 +13,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowAttributes;
 use winit::{self, event_loop::EventLoop};
 
-use crate::prelude::common::Widget;
+use crate::globals::Globals;
 
 pub struct BGui {
     pub(crate) instance: wgpu::Instance,
@@ -23,12 +25,13 @@ pub struct BGui {
     pub(crate) staging_belt: StagingBelt,
 
     pub(crate) widgets: Vec<Box<dyn Widget>>,
+    pub(crate) globals: HashMap<String, Globals>,
 
     pub(crate) surface: Option<Surface<'static>>,
     pub(crate) surface_config: Option<SurfaceConfiguration>,
 }
 
-impl BGui {
+impl<'a> BGui {
     pub fn run(mut self) -> Result<(), EventLoopError> {
         let events = EventLoop::new().expect("Failed to start EventLoop");
         events.run_app(&mut self)
@@ -73,8 +76,8 @@ impl BGui {
         }
     }
 
-    pub fn render(&mut self) {
-        let surface = self.surface.as_mut().unwrap();
+    fn render(&mut self) {
+        let surface = self.surface.as_ref().unwrap();
         match surface.get_current_texture() {
             Ok(frame) => {
                 let mut view = frame.texture.create_view(&TextureViewDescriptor::default());
@@ -103,14 +106,20 @@ impl BGui {
                     occlusion_query_set: None,
                 });
 
-                let mut brush = self.glyph_brush.as_mut().unwrap();
-
-                for widget in &mut self.widgets.iter_mut() {
-                    widget.update();
-                    widget.draw(&mut brush);
+                for widget in &self.widgets {
+                    let drawable = widget.drawable();
+                    for cmd in drawable.draw_command() {
+                        match cmd {
+                            crate::prelude::common::DrawCommand::Text(section) => {
+                                self.glyph_brush.as_mut().unwrap().queue(section)
+                            }
+                        }
+                    }
                 }
 
-                brush
+                self.glyph_brush
+                    .as_mut()
+                    .unwrap()
                     .draw_queued(
                         &self.device,
                         &mut self.staging_belt,
@@ -131,8 +140,18 @@ impl BGui {
         }
     }
 
+    pub fn update_widgets(&mut self) {
+        for x in self.widgets.iter_mut() {
+            x.update(&mut self.globals);
+        }
+    }
+
     pub fn insert_widget<W: Widget + 'static>(&mut self, widget: W) {
         self.widgets.push(Box::new(widget));
+    }
+
+    pub fn insert_global(&mut self, id: String, global: Globals) {
+        self.globals.insert(id, global);
     }
 }
 
@@ -152,6 +171,7 @@ impl ApplicationHandler for BGui {
                 process::exit(0);
             }
             WindowEvent::RedrawRequested => {
+                self.update_widgets();
                 self.render();
             }
             WindowEvent::Resized(size) => {
