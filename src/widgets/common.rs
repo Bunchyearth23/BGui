@@ -22,7 +22,7 @@ pub trait Drawable {
 }
 
 pub trait Interactable {
-    fn interacted(&self) -> bool {
+    fn in_interactable_zone(&self, _mouse_position: (f32, f32)) -> bool {
         false
     }
 }

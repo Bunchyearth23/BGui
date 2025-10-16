@@ -93,6 +93,7 @@ impl BGuiBuilder {
             widgets: Vec::new(),
             globals: HashMap::new(),
             pipelines: HashMap::new(),
+            mouse_position: (0.0, 0.0),
         }
     }
 }

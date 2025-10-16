@@ -35,6 +35,8 @@ pub struct BGui {
 
     pub(crate) surface: Option<Surface<'static>>,
     pub(crate) surface_config: Option<SurfaceConfiguration>,
+
+    pub(crate) mouse_position: (f32, f32),
 }
 
 impl<'a> BGui {
@@ -281,27 +283,28 @@ impl<'a> BGui {
             .insert("rectangle_pipeline".into(), button_pipeline);
     }
 
-    fn interact_widget(&mut self, button: MouseButton, _state: ElementState) {
+    fn interact_widget(&mut self, button: MouseButton, state: ElementState) {
         match button {
-            MouseButton::Left => self.left_click(),
+            MouseButton::Left => match state {
+                ElementState::Pressed => (),
+                ElementState::Released => {
+                    for widget in self.widgets.iter_mut() {
+                        match widget.interactable() {
+                            Some(x) => {
+                                if x.in_interactable_zone(self.mouse_position) {
+                                    widget.execute_function(&mut self.globals);
+                                };
+                            }
+                            None => (),
+                        }
+                    }
+                }
+            },
             MouseButton::Right => (),
             MouseButton::Middle => (),
             MouseButton::Back => (),
             MouseButton::Forward => (),
             MouseButton::Other(_) => (),
-        }
-    }
-
-    fn left_click(&mut self) {
-        for widget in self.widgets.iter_mut() {
-            match widget.interactable() {
-                Some(x) => {
-                    if x.interacted() {
-                        widget.execute_function(&mut self.globals);
-                    };
-                }
-                None => (),
-            }
         }
     }
 }
@@ -334,6 +337,11 @@ impl ApplicationHandler for BGui {
             } => {
                 self.interact_widget(button, state);
             }
+            #[allow(unused)]
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => self.mouse_position = (position.x as f32, position.y as f32),
             WindowEvent::Resized(size) => {
                 let (x, y) = (size.width, size.height);
                 self.reconfigure_surface(x, y);
