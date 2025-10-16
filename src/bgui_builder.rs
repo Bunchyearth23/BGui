@@ -92,6 +92,7 @@ impl BGuiBuilder {
             staging_belt: StagingBelt::new(128),
             widgets: Vec::new(),
             globals: HashMap::new(),
+            pipelines: HashMap::new(),
         }
     }
 }

@@ -1,15 +1,13 @@
 use crate::globals::Globals;
 use crate::widgets::common::{DrawCommand, Drawable, Widget};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
 use wgpu_glyph::ab_glyph::PxScale;
 use wgpu_glyph::{Extra, Section, Text};
 
 pub struct BText {
     text: String,
     position: (f32, f32),
-    func: Option<Arc<Mutex<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>>,
+    func: Option<Box<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>,
 }
 
 impl BText {
@@ -25,7 +23,7 @@ impl BText {
         &mut self,
         in_func: F,
     ) {
-        self.func = Some(Arc::new(Mutex::new(in_func)))
+        self.func = Some(Box::new(in_func))
     }
 
     pub fn get_text(&self) -> String {
@@ -63,9 +61,9 @@ impl Widget for BText {
         })
     }
     fn update(&mut self, global: &mut HashMap<String, Globals>) {
-        if let Some(function) = self.func.clone() {
-            let mut lock = function.lock().expect("Poisoned");
-            lock.call_mut((self, global));
+        if let Some(mut function) = self.func.take() {
+            function(self, global);
+            self.func = Some(function);
         }
     }
 }

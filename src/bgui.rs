@@ -1,10 +1,15 @@
+use crate::prelude::common::DrawCommand;
 use crate::widgets::common::Widget;
 use std::collections::HashMap;
 use std::process;
 
-use wgpu::util::StagingBelt;
+use wgpu::util::{BufferInitDescriptor, DeviceExt, StagingBelt};
 use wgpu::wgt::TextureViewDescriptor;
-use wgpu::{Surface, SurfaceConfiguration};
+use wgpu::{
+    BindGroupDescriptor, BindGroupEntry, BlendState, BufferUsages, ColorTargetState, ColorWrites,
+    FragmentState, MultisampleState, PipelineCompilationOptions, PrimitiveState, RenderPipeline,
+    ShaderModuleDescriptor, Surface, SurfaceConfiguration, VertexState,
+};
 use wgpu_glyph::ab_glyph::FontArc;
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
@@ -26,6 +31,7 @@ pub struct BGui {
 
     pub(crate) widgets: Vec<Box<dyn Widget>>,
     pub(crate) globals: HashMap<String, Globals>,
+    pub(crate) pipelines: HashMap<String, RenderPipeline>,
 
     pub(crate) surface: Option<Surface<'static>>,
     pub(crate) surface_config: Option<SurfaceConfiguration>,
@@ -85,7 +91,7 @@ impl<'a> BGui {
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-                let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: None,
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
@@ -110,12 +116,71 @@ impl<'a> BGui {
                     let drawable = widget.drawable();
                     for cmd in drawable.draw_command() {
                         match cmd {
-                            crate::prelude::common::DrawCommand::Text(section) => {
+                            DrawCommand::Rect(start, end) => {
+                                let pipeline = self
+                                    .pipelines
+                                    .get("rectangle_pipeline")
+                                    .expect("Failed to retreive Pipeline");
+
+                                let color: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
+
+                                let color_buffer =
+                                    self.device.create_buffer_init(&BufferInitDescriptor {
+                                        label: None,
+                                        contents: bytemuck::cast_slice(&[color]),
+                                        usage: BufferUsages::UNIFORM,
+                                    });
+
+                                let bind_group =
+                                    self.device.create_bind_group(&BindGroupDescriptor {
+                                        label: None,
+                                        layout: &pipeline.get_bind_group_layout(0),
+                                        entries: &[BindGroupEntry {
+                                            binding: 0,
+                                            resource: color_buffer.as_entire_binding(),
+                                        }],
+                                    });
+
+                                render_pass.set_pipeline(pipeline);
+                                render_pass.set_bind_group(0, &bind_group, &[]);
+
+                                let (x, y) = (
+                                    self.surface_config.as_ref().unwrap().width,
+                                    self.surface_config.as_ref().unwrap().height,
+                                );
+
+                                let x0 = start.0 / (x as f32) * 2.0 - 1.0;
+                                let y0 = 1.0 - start.1 / (y as f32) * 2.0;
+                                let x1 = end.0 / (x as f32) * 2.0 - 1.0;
+                                let y1 = 1.0 - end.1 / (y as f32) * 2.0;
+
+                                let vertices = [
+                                    ButtonVertex { position: [x0, y0] },
+                                    ButtonVertex { position: [x1, y0] },
+                                    ButtonVertex { position: [x0, y1] },
+                                    ButtonVertex { position: [x1, y1] },
+                                    ButtonVertex { position: [x0, y1] },
+                                    ButtonVertex { position: [x1, y0] },
+                                ];
+
+                                let vertex_buffer =
+                                    self.device.create_buffer_init(&BufferInitDescriptor {
+                                        label: None,
+                                        contents: bytemuck::cast_slice(&vertices),
+                                        usage: BufferUsages::VERTEX,
+                                    });
+
+                                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                                render_pass.draw(0..6, 0..1);
+                            }
+                            DrawCommand::Text(section) => {
                                 self.glyph_brush.as_mut().unwrap().queue(section)
                             }
                         }
                     }
                 }
+
+                drop(render_pass);
 
                 self.glyph_brush
                     .as_mut()
@@ -153,11 +218,74 @@ impl<'a> BGui {
     pub fn insert_global(&mut self, id: String, global: Globals) {
         self.globals.insert(id, global);
     }
+
+    fn init_shaders(&mut self) {
+        let shader = self.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/rectangle.wgsl").into()),
+        });
+
+        let bind_group_layout =
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, // accessible dans les deux shaders
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+
+        let button_pipeline_layout =
+            self.device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+        let button_pipeline = self
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&button_pipeline_layout),
+                vertex: VertexState {
+                    module: &shader,
+                    entry_point: Some("v_main"),
+                    buffers: &[ButtonVertex::desc()],
+                    compilation_options: PipelineCompilationOptions::default(),
+                },
+                primitive: PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+                fragment: Some(FragmentState {
+                    module: &shader,
+                    entry_point: Some("f_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    targets: &[Some(ColorTargetState {
+                        format: self.surface_config.as_ref().unwrap().format,
+                        blend: Some(BlendState::ALPHA_BLENDING),
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+                cache: None,
+            });
+
+        self.pipelines
+            .insert("rectangle_pipeline".into(), button_pipeline);
+    }
 }
 
 impl ApplicationHandler for BGui {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         self.init(&event_loop);
+        self.init_shaders();
     }
 
     fn window_event(
@@ -179,6 +307,29 @@ impl ApplicationHandler for BGui {
                 self.reconfigure_surface(x, y);
             }
             _ => (),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct ButtonVertex {
+    position: [f32; 2], // x et y
+}
+
+impl ButtonVertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<ButtonVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // correspond à @location(0) dans WGSL
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ],
         }
     }
 }

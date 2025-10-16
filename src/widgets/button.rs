@@ -1,15 +1,13 @@
 use crate::globals::Globals;
 use crate::widgets::common::{DrawCommand, Drawable, Widget};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
-use wgpu_glyph::ab_glyph::PxScale;
-use wgpu_glyph::{Extra, Section, Text};
+use wgpu_glyph::ab_glyph::{Font, FontArc, PxScale, ScaleFont};
+use wgpu_glyph::{Extra, GlyphPositioner, Section, Text};
 
 pub struct BButton {
     text: String,
     position: (f32, f32),
-    func: Option<Arc<Mutex<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>>,
+    func: Option<Box<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>,
 }
 
 impl BButton {
@@ -25,7 +23,7 @@ impl BButton {
         &mut self,
         in_func: F,
     ) {
-        self.func = Some(Arc::new(Mutex::new(in_func)))
+        self.func = Some(Box::new(in_func))
     }
 
     pub fn get_text(&self) -> String {
@@ -40,6 +38,7 @@ impl BButton {
 impl Drawable for BButton {
     fn draw_command(&self) -> Vec<super::common::DrawCommand<'_>> {
         let mut commands = Vec::<DrawCommand>::new();
+
         let section: Section<Extra> = Section {
             screen_position: (self.position.0, self.position.1),
             text: vec![
@@ -49,6 +48,29 @@ impl Drawable for BButton {
             ],
             ..Default::default()
         };
+
+        let font = FontArc::try_from_slice(include_bytes!(".././font/default.ttf")).unwrap();
+        let scale = PxScale { x: 32.0, y: 32.0 };
+
+        let mut text_width = 0.0;
+        for c in self.text.chars() {
+            let glyph = font.as_scaled(scale).h_advance(font.glyph_id(c));
+            text_width += glyph;
+        }
+
+        let padding = 5.0;
+        let text_height = 32.0;
+
+        let start_pos_x = self.position.0 - padding;
+        let start_pos_y = self.position.1 - padding;
+
+        let end_pos_x = self.position.0 + text_width + padding;
+        let end_pos_y = self.position.1 + text_height + padding;
+
+        commands.push(DrawCommand::Rect(
+            (start_pos_x, start_pos_y),
+            (end_pos_x, end_pos_y),
+        ));
         commands.push(DrawCommand::Text(section));
         commands
     }
@@ -62,10 +84,11 @@ impl Widget for BButton {
             func: None,
         })
     }
+
     fn update(&mut self, global: &mut HashMap<String, Globals>) {
-        if let Some(function) = self.func.clone() {
-            let mut lock = function.lock().expect("Poisoned");
-            lock.call_mut((self, global));
+        if let Some(mut function) = self.func.take() {
+            function(self, global);
+            self.func = Some(function);
         }
     }
 }
