@@ -5,7 +5,11 @@ use wgpu_glyph::Section;
 
 pub trait Widget {
     fn drawable(&self) -> Box<dyn Drawable>;
+    fn interactable(&self) -> Option<Box<dyn Interactable>> {
+        None
+    }
     fn update(&mut self, _global: &mut HashMap<String, Globals>) {}
+    fn execute_function(&mut self, _global: &mut HashMap<String, Globals>) {}
 }
 
 pub enum DrawCommand<'a> {
@@ -15,4 +19,10 @@ pub enum DrawCommand<'a> {
 
 pub trait Drawable {
     fn draw_command(&self) -> Vec<DrawCommand<'_>>;
+}
+
+pub trait Interactable {
+    fn interacted(&self) -> bool {
+        false
+    }
 }

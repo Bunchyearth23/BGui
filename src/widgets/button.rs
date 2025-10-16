@@ -2,12 +2,13 @@ use crate::globals::Globals;
 use crate::widgets::common::{DrawCommand, Drawable, Widget};
 use std::collections::HashMap;
 use wgpu_glyph::ab_glyph::{Font, FontArc, PxScale, ScaleFont};
-use wgpu_glyph::{Extra, GlyphPositioner, Section, Text};
+use wgpu_glyph::{Extra, Section, Text};
 
 pub struct BButton {
     text: String,
     position: (f32, f32),
     func: Option<Box<dyn FnMut(&mut Self, &mut HashMap<String, Globals>)>>,
+    executable_func: Option<Box<dyn FnMut(&mut HashMap<String, Globals>)>>,
 }
 
 impl BButton {
@@ -16,6 +17,7 @@ impl BButton {
             text: text,
             position: pos,
             func: None,
+            executable_func: None,
         }
     }
 
@@ -24,6 +26,13 @@ impl BButton {
         in_func: F,
     ) {
         self.func = Some(Box::new(in_func))
+    }
+
+    pub fn add_exec_function<F: FnMut(&mut HashMap<String, Globals>) + 'static>(
+        &mut self,
+        in_func: F,
+    ) {
+        self.executable_func = Some(Box::new(in_func))
     }
 
     pub fn get_text(&self) -> String {
@@ -82,6 +91,7 @@ impl Widget for BButton {
             text: self.text.clone(),
             position: self.position,
             func: None,
+            executable_func: None,
         })
     }
 
@@ -89,6 +99,13 @@ impl Widget for BButton {
         if let Some(mut function) = self.func.take() {
             function(self, global);
             self.func = Some(function);
+        }
+    }
+
+    fn execute_function(&mut self, global: &mut HashMap<String, Globals>) {
+        if let Some(mut function) = self.executable_func.take() {
+            function(global);
+            self.executable_func = Some(function);
         }
     }
 }
