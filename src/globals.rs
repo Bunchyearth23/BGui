@@ -1,4 +1,4 @@
-use crate::bgui::BGui;
+use std::{any::Any, collections::HashMap};
 
 pub enum Globals {
     Empty,
@@ -8,7 +8,13 @@ pub enum Globals {
     Other(Box<dyn Global>),
 }
 
-pub trait Global {
-    fn get(&self, ui: &BGui) -> Box<dyn Global>;
-    fn set(&self, id: String, ui: &mut BGui);
+pub trait Global: Any {
+    fn as_any(&self) -> &dyn Any;
+    fn set(self, id: String, globals: &mut HashMap<String, Globals>);
+}
+
+impl dyn Global {
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        self.as_any().downcast_ref::<T>()
+    }
 }
