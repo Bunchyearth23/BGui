@@ -170,12 +170,12 @@ impl<'a> BGui {
                                 let y1 = 1.0 - end.1 / (y as f32) * 2.0;
 
                                 let vertices = [
-                                    ButtonVertex { position: [x0, y0] },
-                                    ButtonVertex { position: [x1, y0] },
-                                    ButtonVertex { position: [x0, y1] },
-                                    ButtonVertex { position: [x1, y1] },
-                                    ButtonVertex { position: [x0, y1] },
-                                    ButtonVertex { position: [x1, y0] },
+                                    RectVertex { position: [x0, y0] },
+                                    RectVertex { position: [x1, y0] },
+                                    RectVertex { position: [x0, y1] },
+                                    RectVertex { position: [x1, y1] },
+                                    RectVertex { position: [x0, y1] },
+                                    RectVertex { position: [x1, y0] },
                                 ];
 
                                 let vertex_buffer =
@@ -272,7 +272,7 @@ impl<'a> BGui {
                 vertex: VertexState {
                     module: &shader,
                     entry_point: Some("v_main"),
-                    buffers: &[ButtonVertex::desc()],
+                    buffers: &[RectVertex::desc()],
                     compilation_options: PipelineCompilationOptions::default(),
                 },
                 primitive: PrimitiveState::default(),
@@ -370,14 +370,14 @@ impl ApplicationHandler for BGui {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct ButtonVertex {
+struct RectVertex {
     position: [f32; 2], // x et y
 }
 
-impl ButtonVertex {
+impl RectVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<ButtonVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<RectVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 // correspond à @location(0) dans WGSL
