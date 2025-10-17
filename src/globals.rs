@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::any::Any;
 
 pub enum Globals {
     Empty,
@@ -8,13 +8,12 @@ pub enum Globals {
     Other(Box<dyn Global>),
 }
 
-pub trait Global: Any {
+pub trait Global: Any + Send + Sync {
     fn as_any(&self) -> &dyn Any;
-    fn set(self, id: String, globals: &mut HashMap<String, Globals>);
 }
 
 impl dyn Global {
-    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+    pub fn get_any<T: 'static>(&self) -> Option<&T> {
         self.as_any().downcast_ref::<T>()
     }
 }
