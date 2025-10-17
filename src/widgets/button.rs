@@ -83,6 +83,7 @@ impl Drawable for BButton {
         commands.push(DrawCommand::Rect(
             (self.start.0, self.start.1),
             (self.end.0, self.end.1),
+            [0.5, 0.5, 0.5, 1.0],
         ));
         commands.push(DrawCommand::Text(section));
         commands

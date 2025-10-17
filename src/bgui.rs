@@ -118,18 +118,31 @@ impl<'a> BGui {
                     let drawable = widget.drawable();
                     for cmd in drawable.draw_command() {
                         match cmd {
-                            DrawCommand::Rect(start, end) => {
+                            DrawCommand::Rect(start, end, color) => {
+                                let final_color: [f32; 4];
+                                if let Some(interact) = widget.interactable() {
+                                    if interact.in_interactable_zone(self.mouse_position) {
+                                        final_color = [
+                                            color[0] - 0.1,
+                                            color[1] - 0.1,
+                                            color[2] - 0.1,
+                                            color[3],
+                                        ];
+                                    } else {
+                                        final_color = color;
+                                    }
+                                } else {
+                                    final_color = color;
+                                }
                                 let pipeline = self
                                     .pipelines
                                     .get("rectangle_pipeline")
                                     .expect("Failed to retreive Pipeline");
 
-                                let color: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
-
                                 let color_buffer =
                                     self.device.create_buffer_init(&BufferInitDescriptor {
                                         label: None,
-                                        contents: bytemuck::cast_slice(&[color]),
+                                        contents: bytemuck::cast_slice(&[final_color]),
                                         usage: BufferUsages::UNIFORM,
                                     });
 
@@ -341,7 +354,11 @@ impl ApplicationHandler for BGui {
             WindowEvent::CursorMoved {
                 device_id,
                 position,
-            } => self.mouse_position = (position.x as f32, position.y as f32),
+            } => {
+                self.mouse_position = (position.x as f32, position.y as f32);
+                self.update_widgets();
+                self.render();
+            }
             WindowEvent::Resized(size) => {
                 let (x, y) = (size.width, size.height);
                 self.reconfigure_surface(x, y);

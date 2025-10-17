@@ -14,7 +14,7 @@ pub trait Widget {
 
 pub enum DrawCommand<'a> {
     Text(Section<'a>),
-    Rect((f32, f32), (f32, f32)),
+    Rect((f32, f32), (f32, f32), [f32; 4]),
 }
 
 pub trait Drawable {
